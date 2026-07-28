@@ -7,11 +7,10 @@ const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
 const XLSX = require('xlsx');
 const nodemailer = require('nodemailer');
-const cron = require('node-cron');
+const { kv } = require('@vercel/kv');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'data', 'contacts.csv');
 const FIELDS = [
   'id','name','firm','office','role','email','phone',
   'how_met','event','date_met','last_contact','status',
@@ -21,49 +20,66 @@ const FIELDS = [
 app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── CSV helpers ───────────────────────────────────────────────────────────────
+// ── One-time CSV migration ────────────────────────────────────────────────────
 
-function readCSV() {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  const raw = fs.readFileSync(DATA_FILE, 'utf-8').replace(/^﻿/, '');
-  if (!raw.trim()) return [];
-  const records = parse(raw, { columns: true, skip_empty_lines: true, relax_column_count: true });
-  return records.map(r => {
-    const obj = {};
-    FIELDS.forEach(f => { obj[f] = (r[f] ?? '').toString(); });
-    return obj;
-  });
+function readLegacyCSV() {
+  const csvPath = path.join(__dirname, 'data', 'contacts.csv');
+  try {
+    if (!fs.existsSync(csvPath)) return [];
+    const raw = fs.readFileSync(csvPath, 'utf-8').replace(/^﻿/, '');
+    if (!raw.trim()) return [];
+    const records = parse(raw, { columns: true, skip_empty_lines: true, relax_column_count: true });
+    return records.map(r => {
+      const obj = {};
+      FIELDS.forEach(f => { obj[f] = (r[f] ?? '').toString(); });
+      return obj;
+    });
+  } catch { return []; }
 }
 
-function writeCSV(contacts) {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  const csv = stringify(contacts, { header: true, columns: FIELDS, quoted: true, record_delimiter: '\n' });
-  fs.writeFileSync(DATA_FILE, csv, 'utf-8');
-}
+// ── KV helpers ────────────────────────────────────────────────────────────────
 
-function ensureFile() {
-  fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) writeCSV([]);
-}
-
-function loadContacts() {
-  const contacts = readCSV();
+async function loadContacts() {
+  let contacts = await kv.get('contacts');
+  if (!contacts) {
+    contacts = readLegacyCSV();
+    if (contacts.length) await kv.set('contacts', contacts);
+    else contacts = [];
+  }
   const maxId = contacts.reduce((m, c) => Math.max(m, parseInt(c.id) || 0), 0);
   let nextId = maxId + 1;
   let changed = false;
   contacts.forEach(c => { if (!c.id) { c.id = String(nextId++); changed = true; } });
-  if (changed) writeCSV(contacts);
+  if (changed) await kv.set('contacts', contacts);
   return contacts;
 }
 
-// ── Undo / redo ───────────────────────────────────────────────────────────────
+async function writeContacts(contacts) {
+  await kv.set('contacts', contacts);
+}
+
+const DEFAULT_SETTINGS = {
+  reminderEmail: '', smtpUser: '', smtpPass: '',
+  smtpHost: 'smtp.gmail.com', smtpPort: 587,
+  daysAhead: 1, sendTime: '08:00', enabled: false
+};
+
+async function loadSettings() {
+  return { ...DEFAULT_SETTINGS, ...((await kv.get('settings')) || {}) };
+}
+
+async function saveSettings(s) {
+  await kv.set('settings', s);
+}
+
+// ── Undo / redo (in-memory; resets on cold start) ─────────────────────────────
 
 const MAX_HISTORY = 30;
 let undoStack = [];
 let redoStack = [];
 
-function snapshot() {
-  undoStack.push(loadContacts());
+async function snapshot() {
+  undoStack.push(await loadContacts());
   if (undoStack.length > MAX_HISTORY) undoStack.shift();
   redoStack = [];
 }
@@ -74,72 +90,74 @@ function historyState() {
 
 app.get('/api/history-state', (req, res) => res.json(historyState()));
 
-app.post('/api/undo', (req, res) => {
+app.post('/api/undo', async (req, res) => {
   try {
     if (!undoStack.length) return res.status(400).json({ error: 'Nothing to undo' });
-    redoStack.push(loadContacts());
-    writeCSV(undoStack.pop());
-    res.json({ contacts: loadContacts(), ...historyState() });
+    redoStack.push(await loadContacts());
+    await writeContacts(undoStack.pop());
+    res.json({ contacts: await loadContacts(), ...historyState() });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/redo', (req, res) => {
+app.post('/api/redo', async (req, res) => {
   try {
     if (!redoStack.length) return res.status(400).json({ error: 'Nothing to redo' });
-    undoStack.push(loadContacts());
-    writeCSV(redoStack.pop());
-    res.json({ contacts: loadContacts(), ...historyState() });
+    undoStack.push(await loadContacts());
+    await writeContacts(redoStack.pop());
+    res.json({ contacts: await loadContacts(), ...historyState() });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── API routes ────────────────────────────────────────────────────────────────
+// ── Contacts API ──────────────────────────────────────────────────────────────
 
-app.get('/api/contacts', (req, res) => {
-  try { res.json(loadContacts()); }
+app.get('/api/contacts', async (req, res) => {
+  try { res.json(await loadContacts()); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.post('/api/contacts', (req, res) => {
+app.post('/api/contacts', async (req, res) => {
   try {
-    snapshot();
-    const contacts = loadContacts();
+    await snapshot();
+    const contacts = await loadContacts();
     const maxId = contacts.reduce((m, c) => Math.max(m, parseInt(c.id) || 0), 0);
     const contact = { ...req.body, id: String(maxId + 1) };
     contacts.push(contact);
-    writeCSV(contacts);
+    await writeContacts(contacts);
     res.json(contact);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.put('/api/contacts/:id', (req, res) => {
+app.put('/api/contacts/:id', async (req, res) => {
   try {
-    snapshot();
-    const contacts = loadContacts();
+    await snapshot();
+    const contacts = await loadContacts();
     const i = contacts.findIndex(c => c.id === req.params.id);
     if (i === -1) return res.status(404).json({ error: 'Not found' });
     contacts[i] = { ...contacts[i], ...req.body, id: req.params.id };
-    writeCSV(contacts);
+    await writeContacts(contacts);
     res.json(contacts[i]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.delete('/api/contacts/:id', (req, res) => {
+app.delete('/api/contacts/:id', async (req, res) => {
   try {
-    snapshot();
-    const contacts = loadContacts().filter(c => c.id !== req.params.id);
-    writeCSV(contacts);
+    await snapshot();
+    const contacts = (await loadContacts()).filter(c => c.id !== req.params.id);
+    await writeContacts(contacts);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/events', (req, res) => {
+app.get('/api/events', async (req, res) => {
   try {
     const events = [...new Set(
-      loadContacts().map(c => (c.event || '').trim()).filter(Boolean)
+      (await loadContacts()).map(c => (c.event || '').trim()).filter(Boolean)
     )].sort((a, b) => a.localeCompare(b));
     res.json(events);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// ── AI: chat ──────────────────────────────────────────────────────────────────
 
 app.post('/api/chat', async (req, res) => {
   try {
@@ -188,6 +206,8 @@ No markdown fences, no explanation — the JSON array only.`,
     res.status(500).json({ error: e.message });
   }
 });
+
+// ── AI: upload notes ──────────────────────────────────────────────────────────
 
 app.post('/api/upload-notes', async (req, res) => {
   try {
@@ -251,6 +271,8 @@ Return ONLY the JSON array — no markdown fences, no explanation.`
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── AI: draft email ───────────────────────────────────────────────────────────
+
 app.post('/api/draft-email', async (req, res) => {
   try {
     const { contacts, context, senderName } = req.body;
@@ -297,9 +319,11 @@ Return JSON array with one object per contact (same order):
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/export', (req, res) => {
+// ── Export ────────────────────────────────────────────────────────────────────
+
+app.get('/api/export', async (req, res) => {
   try {
-    let contacts = loadContacts();
+    let contacts = await loadContacts();
     if (req.query.ids) {
       const ids = new Set(req.query.ids.split(','));
       contacts = contacts.filter(c => ids.has(c.id));
@@ -325,30 +349,22 @@ app.get('/api/export', (req, res) => {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-const SETTINGS_FILE = path.join(__dirname, 'data', 'settings.json');
-const DEFAULT_SETTINGS = {
-  reminderEmail: '', smtpUser: '', smtpPass: '',
-  smtpHost: 'smtp.gmail.com', smtpPort: 587,
-  daysAhead: 1, sendTime: '08:00', enabled: false
-};
+app.get('/api/settings', async (req, res) => {
+  try { res.json(await loadSettings()); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
 
-function loadSettings() {
-  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) }; }
-  catch { return { ...DEFAULT_SETTINGS }; }
-}
-function saveSettings(s) { fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2)); }
-
-app.get('/api/settings', (req, res) => res.json(loadSettings()));
-app.post('/api/settings', (req, res) => {
-  saveSettings({ ...loadSettings(), ...req.body });
-  rescheduleCron();
-  res.json({ ok: true });
+app.post('/api/settings', async (req, res) => {
+  try {
+    await saveSettings({ ...(await loadSettings()), ...req.body });
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Reminder email ─────────────────────────────────────────────────────────────
 
-function getDueContacts(daysAhead) {
-  const contacts = loadContacts();
+async function getDueContacts(daysAhead) {
+  const contacts = await loadContacts();
   const today = new Date(); today.setHours(0,0,0,0);
   const cutoff = new Date(today); cutoff.setDate(cutoff.getDate() + daysAhead);
   return contacts.filter(c => {
@@ -417,22 +433,21 @@ function reminderHtml(items, dateStr) {
   }).join('');
 
   return `<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;max-width:620px;margin:0 auto;padding:24px;color:#0f172a;">
-    <h2 style="margin:0 0 4px;">📬 Networking Follow-ups</h2>
+    <h2 style="margin:0 0 4px;">Networking Follow-ups</h2>
     <p style="color:#64748b;font-size:14px;margin:0 0 24px;">${items.length} reminder${items.length!==1?'s':''} — ${dateStr}</p>
     ${cards}
-    <p style="font-size:12px;color:#94a3b8;margin-top:24px;">Sent by your Networking CRM · <a href="http://localhost:${PORT}" style="color:#94a3b8;">Open app</a></p>
   </body></html>`;
 }
 
 async function sendReminderEmail(preview = false) {
-  const settings = loadSettings();
-  const due = getDueContacts(settings.daysAhead);
+  const settings = await loadSettings();
+  const due = await getDueContacts(settings.daysAhead);
   if (!due.length) return { sent: false, count: 0, reason: 'No follow-ups due in this window' };
 
   const items = await buildReminderContent(due);
   const dateStr = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
   const html = reminderHtml(items, dateStr);
-  const subject = `📬 ${due.length} Follow-up${due.length!==1?'s':''} Due — ${dateStr}`;
+  const subject = `${due.length} Follow-up${due.length!==1?'s':''} Due — ${dateStr}`;
 
   if (preview) return { sent: false, preview: true, html, subject, count: due.length };
 
@@ -455,30 +470,18 @@ app.post('/api/reminders/send', async (req, res) => {
 
 app.get('/api/reminders/preview', async (req, res) => {
   try {
-    const settings = loadSettings();
-    const due = getDueContacts(settings.daysAhead);
+    const settings = await loadSettings();
+    const due = await getDueContacts(settings.daysAhead);
     res.json({ count: due.length, contacts: due.map(c => ({ name: c.name, firm: c.firm, follow_up_date: c.follow_up_date })) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Cron scheduler ────────────────────────────────────────────────────────────
+// ── Start ─────────────────────────────────────────────────────────────────────
 
-let cronTask = null;
-function rescheduleCron() {
-  if (cronTask) { cronTask.stop(); cronTask = null; }
-  const s = loadSettings();
-  if (!s.enabled || !s.reminderEmail) return;
-  const [h, m] = (s.sendTime || '08:00').split(':').map(Number);
-  cronTask = cron.schedule(`${m} ${h} * * *`, async () => {
-    try { const r = await sendReminderEmail(); console.log('Reminder:', r); }
-    catch(e) { console.error('Reminder error:', e.message); }
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\nNetworking CRM → http://localhost:${PORT}\n`);
   });
-  console.log(`Reminders scheduled at ${s.sendTime} daily → ${s.reminderEmail}`);
 }
 
-ensureFile();
-rescheduleCron();
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\nNetworking CRM → http://localhost:${PORT}\n`);
-  console.log(`Data file: ${DATA_FILE}`);
-});
+module.exports = app;

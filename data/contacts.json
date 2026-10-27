@@ -239,17 +239,17 @@
     "firm": "Bridgespan",
     "office": "NY",
     "role": "Manager",
-    "email": "",
+    "email": "Jor.Torres@bridgespan.org",
     "phone": "",
     "how_met": "Bridgespan Group Overview @ SOM/Evans Hall",
     "event": "",
     "date_met": "2025-09-04",
-    "last_contact": "2025-09-04",
+    "last_contact": "2026-10-09",
     "status": "-",
-    "next_step": "",
+    "next_step": "Send TY email",
     "follow_up_date": "",
     "som_yale": "false",
-    "notes": "Prev: Consulting exp, SOM"
+    "notes": "Prev: Consulting exp, SOM\n\n── Oct 9, 2026 ──\nFirst round interviewer at Bridgespan NY.\nEmail inferred from Bridgespan's First.Last@bridgespan.org format; not verified."
   },
   {
     "id": "15",
@@ -2338,24 +2338,6 @@
     "follow_up_date": "",
     "som_yale": "false",
     "notes": "First round interviewer at Bridgespan NY on Oct 9, 2026."
-  },
-  {
-    "id": "131",
-    "name": "Jor Torres",
-    "firm": "Bridgespan",
-    "office": "NY",
-    "role": "",
-    "email": "Jor.Torres@bridgespan.org",
-    "phone": "",
-    "how_met": "Bridgespan first round interview",
-    "event": "",
-    "date_met": "2026-10-09",
-    "last_contact": "2026-10-09",
-    "status": "Not started",
-    "next_step": "Send TY email",
-    "follow_up_date": "",
-    "som_yale": "false",
-    "notes": "First round interviewer at Bridgespan NY on Oct 9, 2026.\nEmail inferred from Bridgespan's First.Last@bridgespan.org format; not verified."
   },
   {
     "id": "132",

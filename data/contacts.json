@@ -2284,5 +2284,41 @@
     "follow_up_date": "",
     "som_yale": "false",
     "notes": "Worked at the Obama Foundation before McKinsey. Very nice guy."
+  },
+  {
+    "id": "128",
+    "name": "Luis Font Figarella",
+    "firm": "McKinsey",
+    "office": "",
+    "role": "",
+    "email": "Luis_Font_Figarella@mckinsey.com",
+    "phone": "",
+    "how_met": "",
+    "event": "",
+    "date_met": "2026-10-27",
+    "last_contact": "2026-10-27",
+    "status": "Not started",
+    "next_step": "",
+    "follow_up_date": "",
+    "som_yale": "false",
+    "notes": "Email inferred from McKinsey's first_last@mckinsey.com format; not verified."
+  },
+  {
+    "id": "129",
+    "name": "Eric Hennessy",
+    "firm": "McKinsey",
+    "office": "",
+    "role": "",
+    "email": "Eric_Hennessy@mckinsey.com",
+    "phone": "",
+    "how_met": "",
+    "event": "",
+    "date_met": "2026-10-27",
+    "last_contact": "2026-10-27",
+    "status": "Not started",
+    "next_step": "",
+    "follow_up_date": "",
+    "som_yale": "false",
+    "notes": "Email inferred from McKinsey's first_last@mckinsey.com format; not verified."
   }
 ]

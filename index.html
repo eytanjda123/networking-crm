@@ -2,103 +2,126 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Networking CRM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="robots" content="noindex, nofollow">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Network">
+  <title>Networking</title>
+  <script>try { if (localStorage.getItem('crm_unlocked') === '1') document.documentElement.dataset.unlocked = '1'; } catch (e) {}</script>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+  <script src="app.js" defer></script>
 </head>
 <body>
-<div id="app">
 
-  <header id="header">
-    <div class="header-left">
-      <svg class="header-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/><path d="M2 14h2m18 0h-2m-8-8V4"/></svg>
-      <span class="app-title">Networking CRM</span>
+<div id="gate">
+  <form id="gate-form" class="gate-card" autocomplete="off">
+    <div class="gate-icon" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
     </div>
-    <button id="undo-btn" class="toolbar-toggle-btn" title="Undo (⌘Z)" disabled>↩</button>
-    <button id="redo-btn" class="toolbar-toggle-btn" title="Redo (⌘⇧Z)" disabled>↪</button>
-    <button id="toolbar-toggle" class="toolbar-toggle-btn" title="Hide search bar">⌃</button>
-    <button class="btn btn-primary" id="add-btn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      New Contact
-    </button>
-  </header>
-
-  <div id="toolbar">
-    <div class="search-wrap">
-      <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="search-input" class="search-input" placeholder="Search contacts…" autocomplete="off">
-    </div>
-    <select id="event-filter" class="filter-select">
-      <option value="">All events</option>
-    </select>
-    <label class="yale-filter" title="Show only Yale SOM contacts">
-      <input type="checkbox" id="yale-filter">
-      Yale SOM only
-    </label>
-    <span id="count-label" class="count-badge">—</span>
-    <div class="density-seg" id="density-seg">
-      <button data-density="compact" title="Compact rows">Compact</button>
-      <button data-density="normal"  title="Normal rows">Normal</button>
-      <button data-density="loose"   title="Spacious rows, more notes">Loose</button>
-    </div>
-    <div class="notes-lines-ctrl" title="Lines of notes visible per row">
-      <span>Notes</span>
-      <button id="notes-lines-dec">−</button>
-      <span id="notes-lines-val">2</span>
-      <button id="notes-lines-inc">+</button>
-    </div>
-    <button id="col-picker-btn" class="btn btn-ghost">Columns ▾</button>
-    <button id="export-btn" class="btn btn-ghost" title="Export to Excel">↓ Export</button>
-  </div>
-
-  <div id="bulk-bar" class="hidden">
-    <span id="bulk-count"></span>
-    <div id="bulk-actions">
-      <div id="bulk-edit-group">
-        <select id="bulk-field-sel">
-          <option value="">Set field…</option>
-          <option value="event">Event</option>
-          <option value="how_met">How met</option>
-          <option value="office">Office</option>
-        </select>
-        <div id="bulk-val-wrap"></div>
-        <button class="bbtn bbtn-primary hidden" id="bulk-apply">Apply</button>
-      </div>
-      <button class="bbtn" id="bulk-copy">Copy list</button>
-      <button class="bbtn bbtn-danger" id="bulk-delete">Delete</button>
-    </div>
-    <button id="bulk-desel" title="Deselect all">✕</button>
-  </div>
-
-  <div id="main">
-    <div id="table-wrap">
-      <table id="contacts-table">
-        <thead id="table-head"></thead>
-        <tbody id="table-body"></tbody>
-      </table>
-    </div>
-
-    <aside id="side-panel">
-      <div id="panel-header">
-        <span id="panel-title">Details</span>
-        <button id="panel-close" title="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div id="panel-body"></div>
-      <div id="panel-footer"></div>
-    </aside>
-  </div>
-
+    <h1>Networking</h1>
+    <p class="gate-sub">Enter the passcode to continue.</p>
+    <input id="gate-input" type="password" placeholder="Passcode" aria-label="Passcode" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <button class="btn btn-primary btn-block" type="submit">Unlock</button>
+    <p id="gate-error" class="gate-error" role="alert" hidden>That passcode isn't right.</p>
+  </form>
 </div>
 
-<div id="col-picker" class="hidden"></div>
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>Networking</h1>
+        <span id="count-label" class="count" aria-live="polite"></span>
+      </div>
+      <div class="topbar-actions">
+        <button id="export-btn" class="btn" title="Download the contacts shown as an Excel file">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          <span>Export</span>
+        </button>
+        <button id="lock-btn" class="btn btn-icon" title="Lock" aria-label="Lock">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
 
-<div id="toast"></div>
-<script src="app.js"></script>
+  <main class="container">
+    <section class="controls">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="search-input" type="search" placeholder="Search name, firm, role, notes…" aria-label="Search contacts" autocomplete="off">
+      </div>
+      <div class="seg" role="group" aria-label="Time range">
+        <button type="button" data-range="all" aria-pressed="true">All</button>
+        <button type="button" data-range="7" aria-pressed="false">Past 7 days</button>
+        <button type="button" data-range="30" aria-pressed="false">Past 30 days</button>
+      </div>
+    </section>
+
+    <section class="filters" aria-label="Filters">
+      <label class="field" id="event-field" hidden>
+        <span>Event</span>
+        <select id="event-filter"><option value="">All</option></select>
+      </label>
+      <label class="field">
+        <span>Group by</span>
+        <select id="group-by">
+          <option value="">None</option>
+          <option value="firm">Firm</option>
+          <option value="event">Event</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Sort</span>
+        <select id="sort-by">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="name">Name A–Z</option>
+          <option value="firm">Firm A–Z</option>
+        </select>
+      </label>
+      <label class="chip-toggle">
+        <input type="checkbox" id="som-filter">
+        <span>Yale</span>
+      </label>
+    </section>
+
+    <div id="results" aria-busy="true">
+      <div class="table-wrap">
+        <table id="contacts-table">
+          <thead>
+            <tr>
+              <th class="c-name" scope="col">Name</th>
+              <th class="c-firm" scope="col">Firm</th>
+              <th class="c-role" scope="col">Role</th>
+              <th class="c-when" scope="col">Last contact</th>
+              <th class="c-note" scope="col">Latest note</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div id="card-list"></div>
+      <div id="empty" class="empty">Loading contacts…</div>
+    </div>
+
+    <footer class="page-note">Read-only. To add or change a contact, ask Claude to update the data.</footer>
+  </main>
+</div>
+
+<div id="backdrop"></div>
+<aside id="detail" aria-hidden="true" aria-label="Contact details">
+  <div class="detail-bar">
+    <button id="detail-close" class="btn btn-icon" aria-label="Close details">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div id="detail-body" class="detail-body"></div>
+</aside>
+
+<div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

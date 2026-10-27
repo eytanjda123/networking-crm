@@ -1,7 +1,9 @@
 # Networking CRM
 
-A static, server-free networking CRM. Contacts live in `data/contacts.json`; edits made in the browser are kept in that browser's localStorage. Use **Export** to download an Excel file.
+A static, read-only networking contact list hosted on GitHub Pages.
 
-To permanently add or change contacts for every device, update `data/contacts.json` and push to `main`.
+- Data: `data/contacts.json` (edit this file to add or change contacts, then push to `main`)
+- Site: `index.html`, `style.css`, `app.js`. No build step and no server.
+- Features: search, recent-contact views (past 7/30 days), group by firm or event, Yale filter, sort, Excel export, passcode screen.
 
-Hosted with GitHub Pages (Settings → Pages → Deploy from branch → `main` / root).
+See `CLAUDE.md` for the contact data conventions.

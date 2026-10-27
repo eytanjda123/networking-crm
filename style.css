@@ -280,24 +280,6 @@ tr.selected:hover td { background: #dbeafe; }
 .cell-trunc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cell-muted { color: var(--text-muted); }
 
-/* ── Status badges ──────────────────────────────────────────────────────────── */
-
-.sbadge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-size: 11.5px;
-  font-weight: 500;
-  white-space: nowrap;
-  border: 1px solid transparent;
-}
-.s-none   { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
-.s-prog   { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
-.s-coffee { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
-.s-ty     { background: #cffafe; color: #0e7490; border-color: #a5f3fc; }
-.s-done   { background: #ede9fe; color: #5b21b6; border-color: #ddd6fe; }
-.s-dash   { background: #f8fafc; color: #94a3b8; border-color: #e2e8f0; }
-
 /* ── Yale badge ─────────────────────────────────────────────────────────────── */
 
 .yale-badge {
@@ -312,11 +294,6 @@ tr.selected:hover td { background: #dbeafe; }
   vertical-align: middle;
   letter-spacing: 0.04em;
 }
-
-/* ── Follow-up colors ───────────────────────────────────────────────────────── */
-
-.fu-overdue { color: #dc2626; font-weight: 500; }
-.fu-soon { color: #d97706; }
 
 /* ── Empty / loading states ─────────────────────────────────────────────────── */
 
@@ -609,11 +586,6 @@ tr.selected:hover td { background: #dbeafe; }
 /* Compact */
 body.density-compact #contacts-table td { padding: 4px 12px; font-size: 12px; }
 body.density-compact #contacts-table th { padding: 5px 12px; font-size: 11px; }
-body.density-compact .sbadge { font-size: 10px; padding: 1px 6px; }
-body.density-compact .fu-cell .fu-date { font-size: 12px; }
-body.density-compact .fu-done-btn,
-body.density-compact .fu-snooze-btn,
-body.density-compact .fu-skip-btn { font-size: 10px; padding: 1px 5px; }
 
 /* Compact — slightly smaller notes font */
 body.density-compact .notes-clamp { font-size: 11px; line-height: 1.35; }
@@ -629,9 +601,7 @@ body.density-loose .notes-clamp { font-size: 12px; line-height: 1.55; }
 #contacts-table.hide-role         th[data-key="role"],         #contacts-table.hide-role         td[data-field="role"]         { display: none; }
 #contacts-table.hide-office       th[data-key="office"],       #contacts-table.hide-office       td[data-field="office"]       { display: none; }
 #contacts-table.hide-email        th[data-key="email"],        #contacts-table.hide-email        td[data-field="email"]        { display: none; }
-#contacts-table.hide-status       th[data-key="status"],       #contacts-table.hide-status       td[data-field="status"]       { display: none; }
 #contacts-table.hide-last_contact th[data-key="last_contact"], #contacts-table.hide-last_contact td[data-field="last_contact"] { display: none; }
-#contacts-table.hide-follow_up_date th[data-key="follow_up_date"], #contacts-table.hide-follow_up_date td[data-field="follow_up_date"] { display: none; }
 #contacts-table.hide-notes        th[data-key="notes"],        #contacts-table.hide-notes        td[data-field="notes"]        { display: none; }
 #contacts-table.hide-event        th[data-key="event"],        #contacts-table.hide-event        td[data-field="event"]        { display: none; }
 
@@ -770,8 +740,7 @@ td.cell-editing {
   outline-offset: -2px;
 }
 
-.inline-input,
-.inline-select {
+.inline-input {
   display: block;
   width: 100%;
   padding: 10px 14px;
@@ -782,8 +751,6 @@ td.cell-editing {
   font-family: var(--font);
   outline: none;
 }
-
-.inline-select { cursor: pointer; }
 
 /* ── Sticky first two columns (checkbox + name) ──────────────────────────── */
 
@@ -816,94 +783,6 @@ tr.bulk-selected:hover td:nth-child(2) { background: #d2e3fc; }
 
 tr.bulk-selected.selected td:nth-child(1),
 tr.bulk-selected.selected td:nth-child(2) { background: #c7d9fb; }
-
-/* ── Follow-up column ─────────────────────────────────────────────────────── */
-
-.fu-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.fu-top {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-
-.fu-date {
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.fu-step {
-  font-size: 11px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-  flex: 1;
-}
-
-.fu-btns {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-tr:hover .fu-btns { opacity: 1; }
-
-.fu-done-btn, .fu-snooze-btn, .fu-skip-btn {
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: var(--font);
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-
-.fu-done-btn {
-  border: 1px solid #a7f3d0;
-  background: #d1fae5;
-  color: #065f46;
-}
-.fu-done-btn:hover { background: #a7f3d0; }
-
-.fu-snooze-btn {
-  border: 1px solid #bfdbfe;
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-.fu-snooze-btn:hover { background: #bfdbfe; }
-
-.fu-skip-btn {
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text-muted);
-}
-.fu-skip-btn:hover { background: #fee2e2; color: var(--danger); border-color: #fecaca; }
-
-.fu-add-btn {
-  background: none;
-  border: none;
-  color: var(--text-subtle);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 0;
-  font-family: var(--font);
-  opacity: 0;
-  transition: opacity 0.12s, color 0.12s;
-}
-tr:hover .fu-add-btn { opacity: 1; }
-.fu-add-btn:hover { color: var(--accent); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MOBILE / IPHONE  (max-width: 768px)
@@ -970,11 +849,6 @@ tr:hover .fu-add-btn { opacity: 1; }
   /* Roomier rows for fingers */
   #contacts-table td { padding: 12px 10px; font-size: 13px; }
   #contacts-table th { padding: 9px 10px; }
-
-  /* Always show follow-up action buttons (no hover on touch) */
-  .fu-btns { opacity: 1 !important; }
-  .fu-add-btn { opacity: 1 !important; }
-  .fu-done-btn, .fu-snooze-btn, .fu-skip-btn { font-size: 10px; padding: 2px 6px; }
 
   /* ── Side panel — full screen on mobile ───────────────────────────────── */
   #side-panel {

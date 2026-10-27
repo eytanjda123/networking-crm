@@ -4,15 +4,14 @@ Static site (GitHub Pages, served from `main` / root). There is no server. The o
 
 ## Contact schema (all values are strings; use "" when unknown)
 
-`id, name, firm, office, role, email, phone, how_met, event, date_met, last_contact, status, next_step, follow_up_date, som_yale, notes`
+`id, name, firm, office, role, email, phone, how_met, event, date_met, last_contact, som_yale, notes`
 
 - `id`: string; new contacts get (max existing id + 1). Never reuse or renumber ids.
-- Dates: `YYYY-MM-DD`. `date_met` and `last_contact` are both today's date (or the meeting date) for a new contact. `follow_up_date` is blank unless a follow-up is implied.
-- `status`: one of `Not started`, `In progress`, `Coffee chat & TY`, `TY`, `Done`, `-`. Use `Not started` for a new contact unless told otherwise.
+- Dates: `YYYY-MM-DD`. `date_met` and `last_contact` are both today's date (or the meeting date) for a new contact. The table is sorted by `last_contact` (newest first), so always set it.
+- `status`, `next_step`, `follow_up_date`: no longer shown in the app. Leave them out for new contacts and don't touch them on existing records.
 - `som_yale`: `false` if not Yale-affiliated; `SOM '26` style (`SOM '<2-digit class year>`) or `SOM` if the year is unknown. Other schools follow the same pattern (e.g. `YLS '26`).
 - `event`: only for a named conference/event (reuse the exact spelling of an existing event). Otherwise "".
 - `how_met`: short phrase, e.g. "Coffee chat", "Panel at ...".
-- `next_step`: short action, e.g. "Send TY email".
 - `notes`: first-person style key points, advice, and context. Never mention the user by name. Use `\n` for line breaks.
 
 ## Workflow

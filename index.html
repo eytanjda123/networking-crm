@@ -35,15 +35,6 @@
     <select id="event-filter" class="filter-select">
       <option value="">All events</option>
     </select>
-    <select id="status-filter" class="filter-select">
-      <option value="">All statuses</option>
-      <option>Not started</option>
-      <option>In progress</option>
-      <option>Coffee chat &amp; TY</option>
-      <option>TY</option>
-      <option>Done</option>
-      <option value="-">—</option>
-    </select>
     <label class="yale-filter" title="Show only Yale SOM contacts">
       <input type="checkbox" id="yale-filter">
       Yale SOM only
@@ -67,16 +58,12 @@
   <div id="bulk-bar" class="hidden">
     <span id="bulk-count"></span>
     <div id="bulk-actions">
-      <button class="bbtn" id="bulk-clear-fu">Clear follow-ups</button>
       <div id="bulk-edit-group">
         <select id="bulk-field-sel">
           <option value="">Set field…</option>
-          <option value="status">Status</option>
           <option value="event">Event</option>
           <option value="how_met">How met</option>
           <option value="office">Office</option>
-          <option value="next_step">Next step</option>
-          <option value="follow_up_date">Follow-up date</option>
         </select>
         <div id="bulk-val-wrap"></div>
         <button class="bbtn bbtn-primary hidden" id="bulk-apply">Apply</button>

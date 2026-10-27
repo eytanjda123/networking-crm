@@ -2193,7 +2193,7 @@
     "next_step": "Send TY email",
     "follow_up_date": "",
     "som_yale": "false",
-    "notes": "Final round interviewer (Interview 1 of 3) at McKinsey DC office, 1200 19th St, on Oct 16, 2026.\nEmail inferred from McKinsey's first_last@mckinsey.com format; not verified."
+    "notes": "Final round interviewer (Interview 1 of 3) at McKinsey DC office, 1200 19th St, on Oct 16, 2026.\nEmail inferred from McKinsey's first_last@mckinsey.com format; not verified.\n\n── Oct 27, 2026 ──\nFormerly White House CFO."
   },
   {
     "id": "123",
@@ -2211,7 +2211,7 @@
     "next_step": "Send TY email",
     "follow_up_date": "",
     "som_yale": "false",
-    "notes": "Final round interviewer (Interview 2 of 3) at McKinsey DC office, 1200 19th St, on Oct 16, 2026.\nEmail inferred from McKinsey's first_last@mckinsey.com format; not verified."
+    "notes": "Final round interviewer (Interview 2 of 3) at McKinsey DC office, 1200 19th St, on Oct 16, 2026.\nEmail inferred from McKinsey's first_last@mckinsey.com format; not verified.\n\n── Oct 27, 2026 ──\nJewish at McKinsey DCO."
   },
   {
     "id": "124",
@@ -2230,5 +2230,59 @@
     "follow_up_date": "",
     "som_yale": "false",
     "notes": "Final round interviewer (Interview 3 of 3) at McKinsey DC office, 1200 19th St, on Oct 16, 2026.\nEmail inferred from McKinsey's first_last@mckinsey.com format; not verified."
+  },
+  {
+    "id": "125",
+    "name": "Harper Caswell",
+    "firm": "McKinsey",
+    "office": "",
+    "role": "",
+    "email": "Harper_Caswell@mckinsey.com",
+    "phone": "",
+    "how_met": "",
+    "event": "",
+    "date_met": "2026-10-27",
+    "last_contact": "2026-10-27",
+    "status": "Not started",
+    "next_step": "",
+    "follow_up_date": "",
+    "som_yale": "false",
+    "notes": ""
+  },
+  {
+    "id": "126",
+    "name": "Darby Cochran",
+    "firm": "McKinsey",
+    "office": "",
+    "role": "",
+    "email": "Darby_Cochran@mckinsey.com",
+    "phone": "",
+    "how_met": "",
+    "event": "",
+    "date_met": "2026-10-27",
+    "last_contact": "2026-10-27",
+    "status": "Not started",
+    "next_step": "",
+    "follow_up_date": "",
+    "som_yale": "false",
+    "notes": ""
+  },
+  {
+    "id": "127",
+    "name": "Shyheim Snead",
+    "firm": "McKinsey",
+    "office": "",
+    "role": "",
+    "email": "Shyheim_Snead@mckinsey.com",
+    "phone": "",
+    "how_met": "",
+    "event": "",
+    "date_met": "2026-10-27",
+    "last_contact": "2026-10-27",
+    "status": "Not started",
+    "next_step": "",
+    "follow_up_date": "",
+    "som_yale": "false",
+    "notes": "Worked at the Obama Foundation before McKinsey. Very nice guy."
   }
 ]

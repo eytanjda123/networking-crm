@@ -113,9 +113,10 @@ function sbadge(status) {
 }
 
 // ── Local data layer (static site — no server) ─────────────────────────────────
-// Contacts seed from data/contacts.json on first load, then live in this
-// browser's localStorage. Edits here don't sync anywhere else — to permanently
-// add/update contacts across devices, edit data/contacts.json and redeploy.
+// data/contacts.json is the source of truth: every page load re-reads it and
+// replaces the browser's localStorage copy. Edits made in the browser (and
+// undo/redo) last only until the next reload — to permanently add/update
+// contacts, edit data/contacts.json and redeploy.
 
 const LS_CONTACTS_KEY = 'crm_contacts_v1';
 const MAX_HISTORY = 30;
@@ -131,13 +132,19 @@ function writeLocalContacts(contacts) {
   localStorage.setItem(LS_CONTACTS_KEY, JSON.stringify(contacts));
 }
 
+let contactsLoaded = false;
+
 async function ensureContactsSeeded() {
-  const existing = readLocalContacts();
-  if (existing) return existing;
-  const r = await fetch('data/contacts.json');
-  const seed = await r.json();
-  writeLocalContacts(seed);
-  return seed;
+  if (contactsLoaded) return readLocalContacts();
+  try {
+    const r = await fetch('data/contacts.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    writeLocalContacts(await r.json());
+  } catch (e) {
+    if (!readLocalContacts()) throw e;
+  }
+  contactsLoaded = true;
+  return readLocalContacts();
 }
 
 function pushUndoSnapshot(contacts) {

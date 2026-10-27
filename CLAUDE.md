@@ -24,6 +24,6 @@ Static site (GitHub Pages, served from `main` / root). There is no server. The o
 
 ## Notes
 
-- Edits made in the browser UI live only in that browser's localStorage and are never in this file. If the user exports an Excel file from the app, merge any differences into `data/contacts.json` on request.
+- `data/contacts.json` is reloaded on every page load, so edits made in the browser UI last only until the next reload and are never in this file. If the user exports an Excel file from the app, merge any differences into `data/contacts.json` on request.
 - `data/contacts.csv` is an old backup and is not used by the app.
 - The site is public on GitHub Pages; never add anything more sensitive than normal professional contact details and notes.

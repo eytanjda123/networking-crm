@@ -7,6 +7,8 @@
   const PREFS_KEY = 'crm_prefs';
   const DAY = 86400000;
   const NEW_WITHIN_DAYS = 7;
+  const SORT_KEYS = ['recent', 'met', 'name', 'firm', 'role', 'office', 'event', 'yale'];
+  const DEFAULT_DIR = { recent: 'desc', met: 'desc' };
 
   const $ = id => document.getElementById(id);
 
@@ -16,7 +18,9 @@
     event: '',
     som: false,
     group: '',
-    sort: 'newest',
+    sort: 'recent',
+    dir: 'desc',
+    notes: 'medium',
     q: '',
     collapsed: new Set(),
     openId: null,
@@ -84,18 +88,6 @@
       ? '<span class="new-dot" title="Recent contact" aria-label="Recent"></span>' : '';
   }
 
-  function latestNote(c) {
-    const notes = String(c.notes || '').trim();
-    if (!notes) return '';
-    const parts = notes.split(/──[^─\n]*──/).map(p => p.trim()).filter(Boolean);
-    let last = parts.length ? parts[parts.length - 1] : notes;
-    if (parts.length <= 1) {
-      const paras = last.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
-      if (paras.length) last = paras[paras.length - 1];
-    }
-    return last.replace(/\s+/g, ' ');
-  }
-
   function toast(msg) {
     const el = $('toast');
     el.textContent = msg;
@@ -106,7 +98,7 @@
 
   function savePrefs() {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ range: S.range, group: S.group, sort: S.sort, som: S.som }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ range: S.range, group: S.group, sort: S.sort, dir: S.dir, notes: S.notes, som: S.som }));
     } catch (e) {}
   }
 
@@ -115,32 +107,41 @@
       const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
       if (['all', '7', '30'].includes(p.range)) S.range = p.range;
       if (['', 'firm', 'event'].includes(p.group)) S.group = p.group;
-      if (['newest', 'oldest', 'name', 'firm'].includes(p.sort)) S.sort = p.sort;
+      if (SORT_KEYS.includes(p.sort)) S.sort = p.sort;
+      else if (p.sort === 'newest') { S.sort = 'recent'; S.dir = 'desc'; }
+      else if (p.sort === 'oldest') { S.sort = 'recent'; S.dir = 'asc'; }
+      if (p.dir === 'asc' || p.dir === 'desc') S.dir = p.dir;
+      if (['short', 'medium', 'full'].includes(p.notes)) S.notes = p.notes;
       S.som = !!p.som;
     } catch (e) {}
   }
 
   // ── Filter, sort, group ─────────────────────────────────────────────────────
 
-  function compare(a, b) {
-    const blankLast = (x, y, fn) => (!x && y ? 1 : x && !y ? -1 : fn());
-    const byId = (p, q) => (parseInt(q.id) || 0) - (parseInt(p.id) || 0);
-    const name = (p, q) => (p.name || '').localeCompare(q.name || '', undefined, { sensitivity: 'base' });
-
-    switch (S.sort) {
-      case 'oldest':
-        return blankLast(a._rec, b._rec, () => a._rec.localeCompare(b._rec)) || -byId(a, b);
-      case 'name':
-        return name(a, b);
-      case 'firm': {
-        const fa = (a.firm || '').trim(), fb = (b.firm || '').trim();
-        return blankLast(fa, fb, () => fa.localeCompare(fb, undefined, { sensitivity: 'base' })) || name(a, b);
+  function sortValue(c, key) {
+    switch (key) {
+      case 'recent': return c._rec;
+      case 'met': return c.date_met || '';
+      case 'yale': {
+        const v = String(c.som_yale || '').trim();
+        if (!isSom(v)) return '';
+        const m = /(\d{2,4})/.exec(v);
+        return m ? m[1].slice(-2) : '00';
       }
-      default:
-        return blankLast(a._rec, b._rec, () => b._rec.localeCompare(a._rec))
-          || (b.date_met || '').localeCompare(a.date_met || '')
-          || byId(a, b);
+      default: return String(c[key] || '').trim().toLowerCase().replace(/^[^a-z0-9]+/, '');
     }
+  }
+
+  function compare(a, b) {
+    const va = sortValue(a, S.sort), vb = sortValue(b, S.sort);
+    if (!va && vb) return 1;
+    if (va && !vb) return -1;
+    let r = va.localeCompare(vb, undefined, { numeric: true, sensitivity: 'base' });
+    if (S.dir === 'desc') r = -r;
+    return r
+      || (b._rec || '').localeCompare(a._rec || '')
+      || (b.date_met || '').localeCompare(a.date_met || '')
+      || (parseInt(b.id) || 0) - (parseInt(a.id) || 0);
   }
 
   function filtered() {
@@ -167,14 +168,19 @@
       map.get(key).items.push(c);
     }
     const groups = [...map.values()];
-    const maxRec = g => g.items.reduce((m, c) => (c._rec > m ? c._rec : m), '');
-    const minRec = g => g.items.reduce((m, c) => (c._rec && (!m || c._rec < m) ? c._rec : m), '');
-    groups.sort((a, b) => {
-      if (!a.key && b.key) return 1;
-      if (a.key && !b.key) return -1;
-      if (S.sort === 'name' || S.sort === 'firm') return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-      if (S.sort === 'oldest') return minRec(a).localeCompare(minRec(b));
-      return maxRec(b).localeCompare(maxRec(a));
+    const vals = g => g.items.map(c => sortValue(c, S.sort)).filter(Boolean).sort();
+    const byDate = S.sort === 'recent' || S.sort === 'met';
+    groups.sort((x, y) => {
+      if (!x.key && y.key) return 1;
+      if (x.key && !y.key) return -1;
+      if (byDate) {
+        const vx = vals(x), vy = vals(y);
+        return S.dir === 'asc'
+          ? (vx[0] || '').localeCompare(vy[0] || '')
+          : (vy[vy.length - 1] || '').localeCompare(vx[vx.length - 1] || '');
+      }
+      const r = x.name.localeCompare(y.name, undefined, { sensitivity: 'base' });
+      return S.dir === 'desc' ? -r : r;
     });
     return groups;
   }
@@ -185,19 +191,19 @@
 
   function rowHtml(c) {
     const when = rel(c._rec);
-    const note = latestNote(c);
+    const note = String(c.notes || '').trim();
     return `<tr class="row${c.id === S.openId ? ' is-open' : ''}" data-id="${esc(c.id)}" tabindex="0">
       <td class="c-name">${esc(c.name)}${tagHtml(c.som_yale)}${newDotHtml(c)}</td>
       <td class="c-firm">${esc(c.firm) || '<span class="none">—</span>'}</td>
       <td class="c-role">${esc(c.role)}</td>
       <td class="c-when" title="${esc(fmtDate(c._rec))}">${when ? esc(when) : '<span class="none">—</span>'}</td>
-      <td class="c-note" title="${esc(note)}">${esc(note)}</td>
+      <td class="c-note">${note ? `<div class="note-text">${esc(note)}</div>` : ''}</td>
     </tr>`;
   }
 
   function cardHtml(c) {
     const when = rel(c._rec);
-    const note = latestNote(c);
+    const note = String(c.notes || '').trim();
     const sub = [c.role, c.firm].map(s => String(s || '').trim()).filter(Boolean).join(' · ');
     return `<article class="card" data-id="${esc(c.id)}" tabindex="0" role="button">
       <div class="card-top">
@@ -258,8 +264,33 @@
     document.querySelectorAll('.seg button').forEach(b =>
       b.setAttribute('aria-pressed', String(b.dataset.range === S.range)));
     $('group-by').value = S.group;
-    $('sort-by').value = S.sort;
     $('som-filter').checked = S.som;
+    $('notes-mode').value = S.notes;
+    const app = $('app');
+    app.classList.remove('notes-short', 'notes-medium', 'notes-full');
+    app.classList.add('notes-' + S.notes);
+    syncSortUi();
+  }
+
+  function syncSortUi() {
+    const desc = S.dir === 'desc';
+    $('sort-by').value = S.sort;
+    const btn = $('sort-dir');
+    btn.textContent = desc ? '↓' : '↑';
+    btn.setAttribute('aria-label', desc ? 'Descending. Click to reverse' : 'Ascending. Click to reverse');
+    btn.title = desc ? 'Descending' : 'Ascending';
+    document.querySelectorAll('thead th[data-sort-col]').forEach(th => {
+      const active = th.dataset.sortCol === S.sort;
+      th.classList.toggle('sorted', active);
+      th.setAttribute('aria-sort', active ? (desc ? 'descending' : 'ascending') : 'none');
+      th.querySelector('.arrow').textContent = active ? (desc ? ' ↓' : ' ↑') : '';
+    });
+  }
+
+  function setSort(key, dir) {
+    S.sort = key;
+    S.dir = dir || DEFAULT_DIR[key] || 'asc';
+    savePrefs(); syncSortUi(); render();
   }
 
   // ── Detail panel ────────────────────────────────────────────────────────────
@@ -410,7 +441,15 @@
 
     $('event-filter').addEventListener('change', e => { S.event = e.target.value; render(); });
     $('group-by').addEventListener('change', e => { S.group = e.target.value; savePrefs(); render(); });
-    $('sort-by').addEventListener('change', e => { S.sort = e.target.value; savePrefs(); render(); });
+    $('sort-by').addEventListener('change', e => setSort(e.target.value));
+    $('sort-dir').addEventListener('click', () => setSort(S.sort, S.dir === 'desc' ? 'asc' : 'desc'));
+    $('notes-mode').addEventListener('change', e => { S.notes = e.target.value; savePrefs(); syncControls(); });
+    document.querySelector('thead').addEventListener('click', e => {
+      const b = e.target.closest('.th-sort');
+      if (!b) return;
+      if (b.dataset.sort === S.sort) setSort(S.sort, S.dir === 'desc' ? 'asc' : 'desc');
+      else setSort(b.dataset.sort);
+    });
     $('som-filter').addEventListener('change', e => { S.som = e.target.checked; savePrefs(); render(); });
     $('export-btn').addEventListener('click', exportXlsx);
 

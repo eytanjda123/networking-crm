@@ -77,10 +77,23 @@
       <label class="field">
         <span>Sort</span>
         <select id="sort-by">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="name">Name A–Z</option>
-          <option value="firm">Firm A–Z</option>
+          <option value="recent">Last contact</option>
+          <option value="met">Date met</option>
+          <option value="name">Name</option>
+          <option value="firm">Firm</option>
+          <option value="role">Role</option>
+          <option value="office">Office</option>
+          <option value="event">Event</option>
+          <option value="yale">Yale class</option>
+        </select>
+        <button type="button" id="sort-dir" class="dir-btn" aria-label="Reverse sort order">↓</button>
+      </label>
+      <label class="field">
+        <span>Notes</span>
+        <select id="notes-mode">
+          <option value="short">Short</option>
+          <option value="medium">Medium</option>
+          <option value="full">Full</option>
         </select>
       </label>
       <label class="chip-toggle">
@@ -94,11 +107,11 @@
         <table id="contacts-table">
           <thead>
             <tr>
-              <th class="c-name" scope="col">Name</th>
-              <th class="c-firm" scope="col">Firm</th>
-              <th class="c-role" scope="col">Role</th>
-              <th class="c-when" scope="col">Last contact</th>
-              <th class="c-note" scope="col">Latest note</th>
+              <th class="c-name" scope="col" data-sort-col="name"><button type="button" class="th-sort" data-sort="name">Name<span class="arrow" aria-hidden="true"></span></button></th>
+              <th class="c-firm" scope="col" data-sort-col="firm"><button type="button" class="th-sort" data-sort="firm">Firm<span class="arrow" aria-hidden="true"></span></button></th>
+              <th class="c-role" scope="col" data-sort-col="role"><button type="button" class="th-sort" data-sort="role">Role<span class="arrow" aria-hidden="true"></span></button></th>
+              <th class="c-when" scope="col" data-sort-col="recent"><button type="button" class="th-sort" data-sort="recent">Last contact<span class="arrow" aria-hidden="true"></span></button></th>
+              <th class="c-note" scope="col">Notes</th>
             </tr>
           </thead>
           <tbody id="table-body"></tbody>

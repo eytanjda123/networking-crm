@@ -25,7 +25,7 @@ Static site (GitHub Pages, served from `main` / root). There is no server. The o
 
 - The site is read-only: it loads `data/contacts.json` on every page load and has no editing UI. All changes go through that file.
 - Recency (the sort order, the "Past 7/30 days" views and the "new" dot) uses `last_contact`, falling back to `date_met`.
-- The "Latest note" column shows the text after the last `── date ──` divider in `notes`, or the last paragraph if there is none.
+- The Notes column shows each contact's full `notes` text (the Notes control switches Short / Medium / Full). The table can be sorted by last contact, date met, name, firm, role, office, event, or Yale class year.
 - A passcode screen (cosmetic only, defined in `app.js`) fronts the site. The JSON is still publicly readable.
 - `data/contacts.csv` is an old backup and is not used by the app.
 - The site is public on GitHub Pages; never add anything more sensitive than normal professional contact details and notes.

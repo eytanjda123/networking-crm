@@ -58,9 +58,6 @@ const S = {
   isNew:        false,
   selected:     new Set(),
   hiddenCols:   new Set(JSON.parse(localStorage.getItem('hiddenCols') || '["office","email","event"]')),
-  queue:        [],
-  queueIdx:     0,
-  dupeMatch:    null,   // { id, name, firm } when a likely duplicate is detected
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -102,61 +99,6 @@ function isSom(val) {
   return v && v !== 'false';
 }
 
-// ── Duplicate detection ───────────────────────────────────────────────────────
-
-function nameSimilar(a, b) {
-  a = a.toLowerCase().trim(); b = b.toLowerCase().trim();
-  if (a === b) return true;
-  const wa = a.split(/\s+/), wb = b.split(/\s+/);
-  // Both first + last name must match (length > 1 to avoid single-word false positives)
-  const shared = wa.filter(w => w.length > 1 && wb.includes(w));
-  return shared.length >= 2;
-}
-
-function findDuplicate(contact) {
-  const email = (contact.email || '').toLowerCase().trim();
-  const name  = (contact.name  || '').toLowerCase().trim();
-  return S.contacts.find(c => {
-    if (email && c.email && c.email.toLowerCase().trim() === email) return true;
-    if (name  && c.name  && nameSimilar(name, c.name)) return true;
-    return false;
-  }) || null;
-}
-
-function openNewPanelWithDupeCheck(contact) {
-  const dupe = findDuplicate(contact);
-  S.dupeMatch = dupe ? { id: dupe.id, name: dupe.name, firm: dupe.firm } : null;
-  openNewPanel(contact);
-}
-
-function mergeIntoExisting(existingId, newContact) {
-  const existing = S.contacts.find(c => c.id === existingId);
-  if (!existing) return;
-
-  const today = new Date().toISOString().split('T')[0];
-  const parts = [
-    newContact.how_met  && `Met via: ${newContact.how_met}`,
-    newContact.event    && `Event: ${newContact.event}`,
-    newContact.notes,
-  ].filter(Boolean).join('\n');
-
-  const divider = `\n\n── ${fmtDate(today) || today} ──\n`;
-  const mergedNotes = existing.notes ? existing.notes + divider + parts : parts;
-
-  S.dupeMatch  = null;
-  S.isNew      = false;
-  S.editing    = true;
-  S.selectedId = existingId;
-  S.editData   = {
-    ...existing,
-    notes:        mergedNotes,
-    last_contact: newContact.last_contact || today,
-    event:        newContact.event || existing.event || '',
-  };
-  document.getElementById('side-panel').classList.add('open');
-  renderPanel();
-}
-
 function firmChip(name) {
   if (!name) return '';
   let hash = 0;
@@ -170,13 +112,99 @@ function sbadge(status) {
   return `<span class="sbadge ${cls}">${h(status || '—')}</span>`;
 }
 
+// ── Local data layer (static site — no server) ─────────────────────────────────
+// Contacts seed from data/contacts.json on first load, then live in this
+// browser's localStorage. Edits here don't sync anywhere else — to permanently
+// add/update contacts across devices, edit data/contacts.json and redeploy.
+
+const LS_CONTACTS_KEY = 'crm_contacts_v1';
+const MAX_HISTORY = 30;
+let localUndoStack = [];
+let localRedoStack = [];
+
+function readLocalContacts() {
+  const raw = localStorage.getItem(LS_CONTACTS_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
+function writeLocalContacts(contacts) {
+  localStorage.setItem(LS_CONTACTS_KEY, JSON.stringify(contacts));
+}
+
+async function ensureContactsSeeded() {
+  const existing = readLocalContacts();
+  if (existing) return existing;
+  const r = await fetch('data/contacts.json');
+  const seed = await r.json();
+  writeLocalContacts(seed);
+  return seed;
+}
+
+function pushUndoSnapshot(contacts) {
+  localUndoStack.push(JSON.parse(JSON.stringify(contacts)));
+  if (localUndoStack.length > MAX_HISTORY) localUndoStack.shift();
+  localRedoStack = [];
+}
+
+function localHistoryState() {
+  return { canUndo: localUndoStack.length > 0, canRedo: localRedoStack.length > 0 };
+}
+
 async function api(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  const r = await fetch('/api' + path, opts);
-  const data = await r.json();
-  if (!r.ok) throw new Error(data.error || 'Request failed');
-  return data;
+  const contacts = await ensureContactsSeeded();
+
+  if (method === 'GET' && path === '/contacts') return contacts;
+
+  if (method === 'GET' && path === '/events') {
+    return [...new Set(contacts.map(c => (c.event || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  if (method === 'GET' && path === '/history-state') return localHistoryState();
+
+  if (method === 'POST' && path === '/contacts') {
+    pushUndoSnapshot(contacts);
+    const maxId = contacts.reduce((m, c) => Math.max(m, parseInt(c.id) || 0), 0);
+    const contact = { ...body, id: String(maxId + 1) };
+    contacts.push(contact);
+    writeLocalContacts(contacts);
+    return contact;
+  }
+
+  const idMatch = path.match(/^\/contacts\/(.+)$/);
+  if (method === 'PUT' && idMatch) {
+    pushUndoSnapshot(contacts);
+    const i = contacts.findIndex(c => c.id === idMatch[1]);
+    if (i === -1) throw new Error('Not found');
+    contacts[i] = { ...contacts[i], ...body, id: idMatch[1] };
+    writeLocalContacts(contacts);
+    return contacts[i];
+  }
+
+  if (method === 'DELETE' && idMatch) {
+    pushUndoSnapshot(contacts);
+    const next = contacts.filter(c => c.id !== idMatch[1]);
+    writeLocalContacts(next);
+    return { ok: true };
+  }
+
+  if (method === 'POST' && path === '/undo') {
+    if (!localUndoStack.length) throw new Error('Nothing to undo');
+    localRedoStack.push(JSON.parse(JSON.stringify(contacts)));
+    const prev = localUndoStack.pop();
+    writeLocalContacts(prev);
+    return { contacts: prev, ...localHistoryState() };
+  }
+
+  if (method === 'POST' && path === '/redo') {
+    if (!localRedoStack.length) throw new Error('Nothing to redo');
+    localUndoStack.push(JSON.parse(JSON.stringify(contacts)));
+    const next = localRedoStack.pop();
+    writeLocalContacts(next);
+    return { contacts: next, ...localHistoryState() };
+  }
+
+  throw new Error('Unknown endpoint: ' + method + ' ' + path);
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -373,28 +401,8 @@ function closePanel() {
   S.isNew = false;
   S.editing = false;
   S.editData = null;
-  S.dupeMatch = null;
   document.getElementById('side-panel').classList.remove('open');
   renderTable();
-}
-
-function startContactQueue(contacts) {
-  S.queue = contacts;
-  S.queueIdx = 0;
-  advanceQueue();
-}
-
-function advanceQueue() {
-  if (S.queueIdx >= S.queue.length) {
-    S.queue = [];
-    S.queueIdx = 0;
-    closePanel();
-    loadContacts();
-    refreshHistory();
-    toast('All contacts reviewed');
-    return;
-  }
-  openNewPanelWithDupeCheck(S.queue[S.queueIdx]);
 }
 
 function renderPanel() {
@@ -406,10 +414,9 @@ function renderPanel() {
     ? (S.editData || {})
     : (S.contacts.find(c => c.id === S.selectedId) || {});
 
-  const inQueue = S.queue.length > 0 && S.isNew;
-  document.getElementById('panel-title').textContent = inQueue
-    ? `Panelist ${S.queueIdx + 1} of ${S.queue.length}${contact.name ? ' — ' + contact.name : ''}`
-    : S.editing ? (S.isNew ? 'New Contact' : 'Edit Contact') : (contact.name || 'Details');
+  document.getElementById('panel-title').textContent = S.editing
+    ? (S.isNew ? 'New Contact' : 'Edit Contact')
+    : (contact.name || 'Details');
 
   if (S.editing) renderEditForm(contact);
   else renderViewDetails(contact);
@@ -506,18 +513,7 @@ function renderEditForm(c) {
 
   const somData = parseSomYale(c.som_yale);
 
-  const dupeBanner = S.dupeMatch ? `
-    <div class="dupe-banner" id="dupe-banner">
-      <div class="dupe-banner-text">
-        <strong>⚠ Possible duplicate</strong> — <em>${h(S.dupeMatch.name)}${S.dupeMatch.firm ? ' · ' + h(S.dupeMatch.firm) : ''}</em> is already in your CRM.
-      </div>
-      <div class="dupe-banner-btns">
-        <button class="btn btn-primary" id="dupe-merge-btn" style="font-size:12px;padding:5px 12px">Add new info to their record</button>
-        <button class="btn btn-ghost"   id="dupe-ignore-btn" style="font-size:12px;padding:5px 12px">Add as new contact</button>
-      </div>
-    </div>` : '';
-
-  document.getElementById('panel-body').innerHTML = dupeBanner + `
+  document.getElementById('panel-body').innerHTML = `
     <div class="form-section-title">Basic</div>
     <div class="form-grid">
       ${inp('name', 'Name', c.name)}
@@ -590,30 +586,12 @@ function renderEditForm(c) {
     </div>
   `;
 
-  const inQ = S.queue.length > 0;
-  const isLast = inQ && S.queueIdx === S.queue.length - 1;
   document.getElementById('panel-footer').innerHTML = `
-    ${inQ ? `<span class="queue-pill">${S.queueIdx + 1} / ${S.queue.length}</span>` : ''}
-    <button class="btn btn-primary" id="save-btn">${inQ ? (isLast ? 'Save & Done' : 'Save & Next →') : 'Save'}</button>
-    <button class="btn btn-ghost" id="cancel-btn">${inQ ? 'Skip →' : 'Cancel'}</button>
+    <button class="btn btn-primary" id="save-btn">Save</button>
+    <button class="btn btn-ghost" id="cancel-btn">Cancel</button>
   `;
 
-  // Duplicate banner buttons
-  const mergeBtn  = document.getElementById('dupe-merge-btn');
-  const ignoreBtn = document.getElementById('dupe-ignore-btn');
-  if (mergeBtn && S.dupeMatch) {
-    const dupeId = S.dupeMatch.id;
-    mergeBtn.addEventListener('click', () => {
-      const data = collectForm();
-      mergeIntoExisting(dupeId, data);
-    });
-    ignoreBtn.addEventListener('click', () => {
-      S.dupeMatch = null;
-      document.getElementById('dupe-banner')?.remove();
-    });
-  }
-
-  // Populate event datalist from server
+  // Populate event datalist
   api('GET', '/events').then(events => {
     const dl = document.getElementById('event-datalist');
     if (dl) events.forEach(e => {
@@ -632,10 +610,7 @@ function renderEditForm(c) {
 
   document.getElementById('save-btn').onclick = saveContact;
   document.getElementById('cancel-btn').onclick = () => {
-    if (S.queue.length > 0) {
-      S.queueIdx++;
-      advanceQueue();
-    } else if (S.isNew) {
+    if (S.isNew) {
       closePanel();
     } else {
       S.editing = false;
@@ -689,18 +664,10 @@ async function saveContact() {
     S.editing = false;
     S.editData = null;
 
-    if (S.queue.length > 0) {
-      // In queue mode — advance to next without full reload
-      S.contacts.push(saved);
-      applyFilters(); renderTable(); renderCount();
-      S.queueIdx++;
-      advanceQueue();
-    } else {
-      await loadContacts();
-      S.selectedId = saved.id;
-      renderPanel();
-      renderTable();
-    }
+    await loadContacts();
+    S.selectedId = saved.id;
+    renderPanel();
+    renderTable();
     refreshHistory();
   } catch (e) {
     toast('Save failed: ' + e.message, true);
@@ -881,157 +848,9 @@ function makeEditable(td, contact, fieldKey) {
   currentEdit = { save, cancel };
 }
 
-// ── AI Chat ───────────────────────────────────────────────────────────────────
-
-async function handleChat() {
-  const input = document.getElementById('chat-input');
-  const sendBtn = document.getElementById('chat-send');
-  const msg = input.value.trim();
-  if (!msg) return;
-
-  sendBtn.disabled = true;
-  sendBtn.innerHTML = '<span class="spinner-ring"></span>';
-
-  try {
-    const { contacts } = await api('POST', '/chat', { message: msg });
-    input.value = '';
-    input.style.height = 'auto';
-
-    if (contacts.length === 1) {
-      openNewPanelWithDupeCheck(contacts[0]);
-      toast('Contact extracted — review and save');
-    } else {
-      openBatchPanel(contacts);
-    }
-  } catch (e) {
-    toast('AI error: ' + e.message, true);
-  } finally {
-    sendBtn.disabled = false;
-    sendBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
-  }
-}
-
-// ── Batch contact panel ───────────────────────────────────────────────────────
-
-let batchContacts = [];
-
-function openBatchPanel(contacts) {
-  batchContacts = contacts;
-  const panel = document.getElementById('batch-panel');
-  const list  = document.getElementById('batch-list');
-
-  document.getElementById('batch-subtitle').textContent =
-    `${contacts.length} contacts found — select which to add`;
-
-  list.innerHTML = contacts.map((c, i) => {
-    const firm = c.firm ? `<span class="batch-firm">${firmChip(c.firm)}</span>` : '';
-    const role = c.role ? `<span class="batch-role">${h(c.role)}</span>` : '';
-    const email = c.email ? `<span class="batch-meta">${h(c.email)}</span>` : '';
-    const office = c.office ? `<span class="batch-meta">${h(c.office)}</span>` : '';
-    const notes = c.notes ? `<div class="batch-notes">${h(c.notes.slice(0, 120))}${c.notes.length > 120 ? '…' : ''}</div>` : '';
-    return `
-      <label class="batch-card" data-idx="${i}">
-        <input type="checkbox" class="batch-cb" data-idx="${i}" checked>
-        <div class="batch-card-body">
-          <div class="batch-card-top">
-            <strong>${h(c.name || 'Unknown')}</strong>${somBadge(c.som_yale)}
-            ${firm}${role ? `<span class="batch-sep">·</span>${role}` : ''}
-          </div>
-          <div class="batch-card-meta">${[email, office].filter(Boolean).join('<span class="batch-sep">·</span>')}</div>
-          ${notes}
-        </div>
-      </label>`;
-  }).join('');
-
-  updateBatchAddBtn();
-  list.querySelectorAll('.batch-cb').forEach(cb =>
-    cb.addEventListener('change', updateBatchAddBtn));
-
-  panel.classList.add('open');
-}
-
-function updateBatchAddBtn() {
-  const checked = document.querySelectorAll('.batch-cb:checked').length;
-  const btn = document.getElementById('batch-add-btn');
-  btn.textContent = checked === batchContacts.length
-    ? `Add all ${checked}`
-    : `Add ${checked} of ${batchContacts.length}`;
-  btn.disabled = checked === 0;
-}
-
-function closeBatchPanel() {
-  document.getElementById('batch-panel').classList.remove('open');
-  batchContacts = [];
-}
-
 // ── Event wiring ──────────────────────────────────────────────────────────────
 
 function init() {
-  // Settings panel
-  const settingsPanel = document.getElementById('settings-panel');
-  const settingsStatus = document.getElementById('settings-status');
-  const FIELDS_MAP = ['reminderEmail','smtpUser','smtpPass','smtpHost','smtpPort','daysAhead','sendTime','enabled'];
-
-  async function loadSettingsUI() {
-    const s = await api('GET', '/settings');
-    document.getElementById('s-reminderEmail').value = s.reminderEmail || '';
-    document.getElementById('s-smtpUser').value      = s.smtpUser || '';
-    document.getElementById('s-smtpPass').value      = s.smtpPass || '';
-    document.getElementById('s-smtpHost').value      = s.smtpHost || 'smtp.gmail.com';
-    document.getElementById('s-smtpPort').value      = s.smtpPort || 587;
-    document.getElementById('s-daysAhead').value     = String(s.daysAhead ?? 1);
-    document.getElementById('s-sendTime').value      = s.sendTime || '08:00';
-    document.getElementById('s-enabled').checked     = !!s.enabled;
-    const { count } = await api('GET', '/reminders/preview');
-    settingsStatus.textContent = count
-      ? `${count} follow-up${count !== 1 ? 's' : ''} due in current window`
-      : 'No follow-ups due in current window';
-  }
-
-  document.getElementById('settings-btn').addEventListener('click', () => {
-    const open = settingsPanel.classList.toggle('open');
-    if (open) loadSettingsUI();
-  });
-  document.getElementById('settings-close').onclick = () => settingsPanel.classList.remove('open');
-
-  document.getElementById('settings-save').addEventListener('click', async () => {
-    const btn = document.getElementById('settings-save');
-    btn.disabled = true; btn.textContent = 'Saving…';
-    try {
-      await api('POST', '/settings', {
-        reminderEmail: document.getElementById('s-reminderEmail').value.trim(),
-        smtpUser:      document.getElementById('s-smtpUser').value.trim(),
-        smtpPass:      document.getElementById('s-smtpPass').value,
-        smtpHost:      document.getElementById('s-smtpHost').value.trim() || 'smtp.gmail.com',
-        smtpPort:      parseInt(document.getElementById('s-smtpPort').value) || 587,
-        daysAhead:     parseInt(document.getElementById('s-daysAhead').value),
-        sendTime:      document.getElementById('s-sendTime').value,
-        enabled:       document.getElementById('s-enabled').checked,
-      });
-      toast('Settings saved');
-    } catch(e) { toast('Error: ' + e.message, true); }
-    finally { btn.disabled = false; btn.textContent = 'Save settings'; }
-  });
-
-  document.getElementById('settings-send-now').addEventListener('click', async () => {
-    const btn = document.getElementById('settings-send-now');
-    btn.disabled = true; btn.textContent = 'Generating…';
-    const previewWrap = document.getElementById('settings-preview-wrap');
-    const previewEl   = document.getElementById('settings-preview');
-    try {
-      const result = await api('POST', '/reminders/send', { preview: false });
-      if (result.sent) {
-        toast(`✓ Reminder sent — ${result.count} contact${result.count !== 1 ? 's' : ''}`);
-        previewWrap.classList.add('hidden');
-      } else {
-        toast(result.reason || 'Nothing to send', false);
-      }
-    } catch(e) {
-      toast('Send failed: ' + e.message, true);
-    } finally {
-      btn.disabled = false; btn.textContent = 'Send reminder now';
-    }
-  });
 
   // Undo / redo
   document.getElementById('undo-btn').addEventListener('click', async () => {
@@ -1300,70 +1119,6 @@ function init() {
     });
   };
 
-  // Bulk bar: draft email
-  const emailPanel = document.getElementById('email-panel');
-
-  document.getElementById('bulk-email').onclick = () => {
-    const contacts = S.contacts.filter(c => S.selected.has(c.id));
-    if (!contacts.length) return;
-    if (emailPanel.classList.contains('open')) {
-      emailPanel.classList.remove('open'); return;
-    }
-    document.getElementById('email-modal-sub').textContent =
-      contacts.map(c => c.name).join(', ');
-    document.getElementById('email-sender').value =
-      localStorage.getItem('senderName') || '';
-    document.getElementById('email-context').value = '';
-    document.getElementById('email-results').innerHTML = '';
-    emailPanel.classList.add('open');
-    setTimeout(() => document.getElementById('email-context').focus(), 220);
-  };
-
-  document.getElementById('email-modal-close').onclick = () =>
-    emailPanel.classList.remove('open');
-
-  document.getElementById('email-generate-btn').addEventListener('click', async () => {
-    const contacts = S.contacts.filter(c => S.selected.has(c.id));
-    const context  = document.getElementById('email-context').value.trim();
-    const sender   = document.getElementById('email-sender').value.trim();
-    if (!context) { toast('Add some context first', true); return; }
-
-    localStorage.setItem('senderName', sender);
-    const btn = document.getElementById('email-generate-btn');
-    btn.disabled = true; btn.textContent = 'Generating…';
-
-    try {
-      const { emails } = await api('POST', '/draft-email', { contacts, context, senderName: sender });
-      const resultsEl = document.getElementById('email-results');
-      resultsEl.innerHTML = emails.map((e, i) => `
-        <div class="email-draft">
-          <div class="email-draft-header">
-            <div>
-              <span class="email-draft-name">${h(e.name)}</span>
-              <span class="email-draft-subject">Subject: ${h(e.subject)}</span>
-            </div>
-            <button class="email-copy-btn bbtn" data-idx="${i}">Copy</button>
-          </div>
-          <pre class="email-draft-body" data-idx="${i}">${h(e.body)}</pre>
-        </div>`).join('');
-      resultsEl.classList.remove('hidden');
-
-      resultsEl.querySelectorAll('.email-copy-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const body = resultsEl.querySelector(`.email-draft-body[data-idx="${btn.dataset.idx}"]`).textContent;
-          navigator.clipboard.writeText(body).then(() => {
-            btn.textContent = 'Copied!';
-            setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-          });
-        });
-      });
-    } catch (err) {
-      toast('Error: ' + err.message, true);
-    } finally {
-      btn.disabled = false; btn.textContent = 'Generate Drafts';
-    }
-  });
-
   // Bulk bar: copy
   document.getElementById('bulk-copy').onclick = bulkCopy;
 
@@ -1441,149 +1196,6 @@ function init() {
     }
   });
 
-  // Chat input: Enter sends, Shift+Enter = newline
-  const chatInput = document.getElementById('chat-input');
-  chatInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleChat();
-    }
-  });
-  chatInput.addEventListener('input', () => {
-    chatInput.style.height = 'auto';
-    chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
-  });
-
-  document.getElementById('chat-send').onclick = handleChat;
-
-  // Batch panel
-  document.getElementById('batch-close').onclick = closeBatchPanel;
-  document.getElementById('batch-cancel-btn').onclick = closeBatchPanel;
-
-  document.getElementById('batch-add-btn').addEventListener('click', async () => {
-    const selected = [...document.querySelectorAll('.batch-cb:checked')]
-      .map(cb => batchContacts[parseInt(cb.dataset.idx)]);
-    if (!selected.length) return;
-
-    const btn = document.getElementById('batch-add-btn');
-    btn.disabled = true;
-    btn.textContent = `Adding ${selected.length}…`;
-
-    try {
-      for (const contact of selected) {
-        await api('POST', '/contacts', contact);
-      }
-      await loadContacts();
-      refreshHistory();
-      closeBatchPanel();
-      toast(`Added ${selected.length} contact${selected.length !== 1 ? 's' : ''}`);
-    } catch (e) {
-      toast('Error: ' + e.message, true);
-      btn.disabled = false;
-      updateBatchAddBtn();
-    }
-  });
-
-  // Photo upload — resize image client-side then send as base64
-  async function resizeImage(file) {
-    return new Promise(resolve => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        const MAX = 1600;
-        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width  = Math.round(img.width  * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(blob => {
-          const reader = new FileReader();
-          reader.onload = () => resolve({ type: 'image/jpeg', data: reader.result.split(',')[1] });
-          reader.readAsDataURL(blob);
-        }, 'image/jpeg', 0.88);
-      };
-      img.src = url;
-    });
-  }
-
-  // Upload progress helpers
-  let pendingContact = null;
-
-  function showUploadStatus(show) {
-    document.getElementById('upload-status').classList.toggle('active', show);
-  }
-  function setProgress(pct, stage) {
-    document.getElementById('upload-bar').style.width = pct + '%';
-    if (stage !== undefined) document.getElementById('upload-stage-text').textContent = stage;
-  }
-
-  async function readPdf(file) {
-    return new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve({ type: 'application/pdf', data: r.result.split(',')[1] });
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
-  }
-
-  document.getElementById('notes-upload').addEventListener('change', async e => {
-    const files = Array.from(e.target.files);
-    e.target.value = '';
-    if (!files.length) return;
-
-    pendingContact = null;
-    document.getElementById('upload-done-row').classList.add('hidden');
-    document.getElementById('upload-files-text').textContent =
-      files.map(f => f.name).join('  ·  ');
-    showUploadStatus(true);
-    setProgress(0, `Reading ${files.length} file${files.length > 1 ? 's' : ''}…`);
-
-    try {
-      const images = [];
-      for (let i = 0; i < files.length; i++) {
-        setProgress((i / files.length) * 45, `Reading file ${i + 1} of ${files.length}…`);
-        const f = files[i];
-        images.push(f.type === 'application/pdf' ? await readPdf(f) : await resizeImage(f));
-      }
-
-      setProgress(50, `Analyzing ${files.length > 1 ? files.length + ' files' : 'notes'} with Claude…`);
-      const result = await api('POST', '/upload-notes', { images });
-      const contacts = result.contacts || (result.contact ? [result.contact] : []);
-      pendingContact = contacts;
-
-      setProgress(100, '');
-      const label = contacts.length === 1
-        ? `✓  ${contacts[0].name || 'contact'}${contacts[0].firm ? ' · ' + contacts[0].firm : ''}`
-        : `✓  ${contacts.length} contacts found`;
-      document.getElementById('upload-result-text').textContent = label;
-      document.getElementById('upload-done-row').classList.remove('hidden');
-    } catch (err) {
-      setProgress(0, '');
-      document.getElementById('upload-stage-text').textContent = '✗  ' + err.message;
-      document.getElementById('upload-stage-text').style.color = 'var(--danger)';
-      setTimeout(() => { showUploadStatus(false); document.getElementById('upload-stage-text').style.color = ''; }, 4000);
-    }
-  });
-
-  document.getElementById('upload-add-btn').addEventListener('click', () => {
-    if (!pendingContact) return;
-    const contacts = Array.isArray(pendingContact) ? pendingContact : [pendingContact];
-    showUploadStatus(false);
-    pendingContact = null;
-    if (contacts.length === 1) {
-      openNewPanelWithDupeCheck(contacts[0]);
-      toast('Review and save');
-    } else {
-      startContactQueue(contacts);
-    }
-  });
-
-  document.getElementById('upload-dismiss').addEventListener('click', () => {
-    showUploadStatus(false);
-    pendingContact = null;
-  });
-
   // Column picker
   const colPickerBtn = document.getElementById('col-picker-btn');
   const colPicker    = document.getElementById('col-picker');
@@ -1633,8 +1245,20 @@ function init() {
 
   // Export
   document.getElementById('export-btn').onclick = () => {
-    const ids = S.selected.size > 0 ? [...S.selected] : S.filtered.map(c => c.id);
-    window.location.href = '/api/export?ids=' + ids.join(',');
+    const ids = new Set(S.selected.size > 0 ? [...S.selected] : S.filtered.map(c => c.id));
+    const contacts = S.contacts.filter(c => ids.has(c.id));
+    const rows = contacts.map(c => ({
+      'Name': c.name, 'Firm': c.firm, 'Office': c.office, 'Role': c.role,
+      'Email': c.email, 'Phone': c.phone, 'How Met': c.how_met,
+      'Date Met': c.date_met, 'Last Contact': c.last_contact, 'Status': c.status,
+      'Next Step': c.next_step, 'Follow-up Date': c.follow_up_date,
+      'SOM/Yale': c.som_yale, 'Notes': c.notes,
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [20,18,12,22,28,16,28,12,12,18,28,14,8,50].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Contacts');
+    XLSX.writeFile(wb, `contacts-${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
   // Initial load

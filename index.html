@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Networking CRM</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Network">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <header id="header">
+    <div class="header-left">
+      <svg class="header-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/><path d="M2 14h2m18 0h-2m-8-8V4"/></svg>
+      <span class="app-title">Networking CRM</span>
+    </div>
+    <button id="undo-btn" class="toolbar-toggle-btn" title="Undo (⌘Z)" disabled>↩</button>
+    <button id="redo-btn" class="toolbar-toggle-btn" title="Redo (⌘⇧Z)" disabled>↪</button>
+    <button id="toolbar-toggle" class="toolbar-toggle-btn" title="Hide search bar">⌃</button>
+    <button class="btn btn-primary" id="add-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Contact
+    </button>
+  </header>
+
+  <div id="toolbar">
+    <div class="search-wrap">
+      <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="search-input" class="search-input" placeholder="Search contacts…" autocomplete="off">
+    </div>
+    <select id="event-filter" class="filter-select">
+      <option value="">All events</option>
+    </select>
+    <select id="status-filter" class="filter-select">
+      <option value="">All statuses</option>
+      <option>Not started</option>
+      <option>In progress</option>
+      <option>Coffee chat &amp; TY</option>
+      <option>TY</option>
+      <option>Done</option>
+      <option value="-">—</option>
+    </select>
+    <label class="yale-filter" title="Show only Yale SOM contacts">
+      <input type="checkbox" id="yale-filter">
+      Yale SOM only
+    </label>
+    <span id="count-label" class="count-badge">—</span>
+    <div class="density-seg" id="density-seg">
+      <button data-density="compact" title="Compact rows">Compact</button>
+      <button data-density="normal"  title="Normal rows">Normal</button>
+      <button data-density="loose"   title="Spacious rows, more notes">Loose</button>
+    </div>
+    <div class="notes-lines-ctrl" title="Lines of notes visible per row">
+      <span>Notes</span>
+      <button id="notes-lines-dec">−</button>
+      <span id="notes-lines-val">2</span>
+      <button id="notes-lines-inc">+</button>
+    </div>
+    <button id="col-picker-btn" class="btn btn-ghost">Columns ▾</button>
+    <button id="export-btn" class="btn btn-ghost" title="Export to Excel">↓ Export</button>
+  </div>
+
+  <div id="bulk-bar" class="hidden">
+    <span id="bulk-count"></span>
+    <div id="bulk-actions">
+      <button class="bbtn" id="bulk-clear-fu">Clear follow-ups</button>
+      <div id="bulk-edit-group">
+        <select id="bulk-field-sel">
+          <option value="">Set field…</option>
+          <option value="status">Status</option>
+          <option value="event">Event</option>
+          <option value="how_met">How met</option>
+          <option value="office">Office</option>
+          <option value="next_step">Next step</option>
+          <option value="follow_up_date">Follow-up date</option>
+        </select>
+        <div id="bulk-val-wrap"></div>
+        <button class="bbtn bbtn-primary hidden" id="bulk-apply">Apply</button>
+      </div>
+      <button class="bbtn" id="bulk-copy">Copy list</button>
+      <button class="bbtn bbtn-danger" id="bulk-delete">Delete</button>
+    </div>
+    <button id="bulk-desel" title="Deselect all">✕</button>
+  </div>
+
+  <div id="main">
+    <div id="table-wrap">
+      <table id="contacts-table">
+        <thead id="table-head"></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+
+    <aside id="side-panel">
+      <div id="panel-header">
+        <span id="panel-title">Details</span>
+        <button id="panel-close" title="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="panel-body"></div>
+      <div id="panel-footer"></div>
+    </aside>
+  </div>
+
+</div>
+
+<div id="col-picker" class="hidden"></div>
+
+<div id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,7 +1,3 @@
-.env
-node_modules/
-data/settings.json
 *.pem
 *.key
-server.log
 .DS_Store

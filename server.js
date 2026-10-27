@@ -169,7 +169,7 @@ app.post('/api/chat', async (req, res) => {
 
     const result = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 8192,
       system: `You are a networking CRM assistant for Eytan, a Yale SOM student. Extract ALL networking contacts from his message — there may be one or several people.
 
 Return ONLY a valid JSON array of contact objects. Always return an array, even for a single contact.
@@ -196,6 +196,10 @@ Only extract people who are actual networking contacts — not people merely men
 No markdown fences, no explanation — the JSON array only.`,
       messages: [{ role: 'user', content: message }]
     });
+
+    if (result.stop_reason === 'max_tokens') {
+      throw new Error('Response was too long and got cut off — try fewer contacts at once');
+    }
 
     const text = result.content[0].text.trim()
       .replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
@@ -259,9 +263,13 @@ Return ONLY the JSON array — no markdown fences, no explanation.`
 
     const result = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+      max_tokens: 8192,
       messages: [{ role: 'user', content }]
     });
+
+    if (result.stop_reason === 'max_tokens') {
+      throw new Error('Response was too long and got cut off — try fewer photos/contacts at once');
+    }
 
     const text = result.content[0].text.trim()
       .replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();

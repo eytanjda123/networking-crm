@@ -2392,5 +2392,20 @@
     "follow_up_date": "",
     "som_yale": "false",
     "notes": "Final round interviewer at Bridgespan NY on Oct 27, 2026.\nEmail inferred from Bridgespan's First.Last@bridgespan.org format; not verified."
+  },
+  {
+    "id": "135",
+    "name": "Reva Alperson",
+    "firm": "ZS Consulting",
+    "office": "",
+    "role": "",
+    "email": "",
+    "phone": "",
+    "how_met": "Bridgespan final round interview",
+    "event": "",
+    "date_met": "2026-10-27",
+    "last_contact": "2026-10-27",
+    "som_yale": "false",
+    "notes": "Columbia MPH. Works at ZS Consulting."
   }
 ]
